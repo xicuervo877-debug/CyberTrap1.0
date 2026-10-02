@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="CyberTrap: simulador interactivo para aprender a reconocer phishing. Observa, decide, descubre.">
+<title>CyberTrap · Aprende a reconocer engaños digitales</title>
+<style>
+/* ============ 1. TOKENS ============ */
+:root{
+  --bg:#0d1117; --surface:#161b22; --surface-2:#1c232d; --line:#2d3641;
+  --text:#e6edf3; --muted:#9aa5b1;
+  --mint:#00e6a8; --mint-dim:rgba(0,230,168,.14);
+  --blue:#4da3ff; --blue-dim:rgba(77,163,255,.14);
+  --red:#ff5c6c;  --red-dim:rgba(255,92,108,.16);
+  --radius:14px;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font:1rem/1.6 var(--font);min-height:100vh;
+  background-image:radial-gradient(circle at 85% -10%,rgba(0,230,168,.07),transparent 45%)}
+:focus-visible{outline:3px solid var(--blue);outline-offset:3px;border-radius:6px}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{width:min(1080px,100% - 2rem);margin-inline:auto}
+
+/* ============ 2. HERO ============ */
+header{padding:2rem 0 1.5rem}
+.brand{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:1.25rem}
+h1{font-size:clamp(2.4rem,9vw,3.8rem);line-height:1;letter-spacing:-.03em;font-weight:800}
+h1 span{color:var(--mint)}
+.tagline{color:var(--muted);margin-top:.6rem;max-width:34ch}
+.score{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:.8rem 1rem;min-width:210px}
+.score-row{display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted)}
+.score-row b{color:var(--mint);font-size:1.15rem}
+.bar{height:8px;background:var(--surface-2);border-radius:99px;margin-top:.6rem;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--mint),var(--blue));transition:width .4s}
+
+/* ============ 3. LAYOUT ============ */
+main{display:grid;gap:1.25rem;padding-bottom:2.5rem}
+@media(min-width:900px){main{grid-template-columns:1.6fr 1fr;align-items:start}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:0 10px 30px rgba(0,0,0,.35);padding:1.1rem}
+@media(min-width:600px){.card{padding:1.5rem}}
+
+/* Pasos: Observa / Decide / Descubre */
+.steps{display:flex;gap:.5rem;list-style:none;padding:0;margin-bottom:1.1rem;font-size:.85rem}
+.steps li{flex:1;text-align:center;padding:.4rem .25rem;border-radius:8px;
+  border:1px solid var(--line);color:var(--muted)}
+.steps li.on{border-color:var(--mint);color:var(--mint);background:var(--mint-dim);font-weight:600}
+
+/* ============ 4. MENSAJE FICTICIO ============ */
+.counter{color:var(--muted);font-size:.9rem;margin-bottom:.6rem}
+.msg{background:#0b0f14;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.msg-head{padding:.8rem 1rem;border-bottom:1px solid var(--line);font-size:.92rem}
+.msg-head .subject{font-weight:700;font-size:1rem;margin-bottom:.25rem}
+.msg-head .from{color:var(--muted);word-break:break-all}
+.msg-body{padding:1rem;white-space:pre-line}
+.msg.sms{max-width:440px;margin-inline:auto}
+.msg.sms .msg-body{background:var(--surface-2);margin:1rem;border-radius:16px 16px 16px 4px}
+.fake-btn{display:inline-block;margin-top:.4rem;padding:.55rem 1rem;border-radius:8px;
+  background:#2b6cb0;color:#fff;font-weight:600;text-decoration:none;cursor:not-allowed;word-break:break-all}
+.url{font-family:var(--mono);font-size:.85rem;color:var(--blue);word-break:break-all}
+
+/* Pistas reveladas en el mensaje (fase Descubre) */
+.hl,.ok{border-radius:4px;transition:background .3s,box-shadow .3s}
+.revealed .hl{background:var(--red-dim);box-shadow:0 2px 0 var(--red)}
+.revealed .ok{background:var(--mint-dim);box-shadow:0 2px 0 var(--mint)}
+
+/* ============ 5. DECISIÓN ============ */
+.actions{display:grid;gap:.75rem;margin-top:1.1rem}
+@media(min-width:600px){.actions{grid-template-columns:1fr 1fr}}
+.btn{min-height:60px;border-radius:12px;border:2px solid;font-weight:700;font-size:1.05rem;
+  background:transparent;transition:transform .12s,background .2s}
+.btn:hover:not(:disabled){transform:translateY(-2px)}
+.btn.safe{border-color:var(--mint);color:var(--mint)}
+.btn.safe:hover:not(:disabled){background:var(--mint-dim)}
+.btn.trap{border-color:var(--red);color:var(--red)}
+.btn.trap:hover:not(:disabled){background:var(--red-dim)}
+.btn:disabled{cursor:default;opacity:.45}
+.btn.picked{opacity:1;background:var(--surface-2)}
+.btn-primary{background:var(--mint);color:#04130e;border:0;border-radius:10px;padding:.75rem 1.4rem;font-weight:700}
+.btn-primary:hover{filter:brightness(1.08)}
+
+/* ============ 6. FEEDBACK ============ */
+.feedback{margin-top:1.1rem;border-radius:12px;padding:1rem;border:1px solid;animation:pop .3s ease-out}
+.feedback.good{border-color:var(--mint);background:var(--mint-dim)}
+.feedback.bad{border-color:var(--red);background:var(--red-dim)}
+.feedback h2{font-size:1.15rem;margin-bottom:.3rem}
+.feedback ul{padding-left:1.1rem;margin:.6rem 0}
+.feedback li{margin-bottom:.35rem}
+.feedback li b{color:var(--text)}
+.tip{background:rgba(0,0,0,.25);border-radius:8px;padding:.7rem .85rem;margin:.7rem 0 1rem}
+@keyframes pop{from{opacity:0;transform:translateY(6px)}}
+
+/* ============ 7. RESULTADO FINAL ============ */
+.final{text-align:center;padding:1rem 0}
+.final .big{font-size:3rem;font-weight:800;color:var(--mint);line-height:1.1}
+
+/* ============ 8. GUÍA ============ */
+.guide h2{font-size:1.15rem;margin-bottom:.25rem}
+.guide>p{color:var(--muted);font-size:.92rem;margin-bottom:.9rem}
+details{border:1px solid var(--line);border-radius:10px;margin-bottom:.55rem;background:var(--surface-2)}
+summary{cursor:pointer;padding:.75rem .9rem;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:.5rem}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--mint);font-size:1.2rem;line-height:1}
+details[open] summary::after{content:"–"}
+details[open]{border-color:var(--mint)}
+details div{padding:0 .9rem .85rem;color:var(--muted);font-size:.94rem}
+
+footer{border-top:1px solid var(--line);padding:1.5rem 0 2rem;color:var(--muted);font-size:.9rem}
+footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.75rem}
+footer a{color:var(--mint)}
+
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap brand">
+    <div>
+      <h1>Cyber<span>Trap</span></h1>
+      <p class="tagline">Aprende a protegerte: observa, decide, descubre.</p>
+    </div>
+    <div class="score" role="status" aria-live="polite">
+      <div class="score-row"><span>Puntaje</span><b id="score">0</b></div>
+      <div class="score-row"><span id="progress-label">Caso 1 de 5</span></div>
+      <div class="bar" aria-hidden="true"><i id="bar"></i></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- ÁREA DE JUEGO -->
+  <section class="card" aria-labelledby="game-title">
+    <h2 id="game-title" class="sr" style="position:absolute;left:-9999px">Simulador</h2>
+    <ol class="steps" aria-label="Fases del ejercicio">
+      <li id="st-observa">1 · Observa</li>
+      <li id="st-decide">2 · Decide</li>
+      <li id="st-descubre">3 · Descubre</li>
+    </ol>
+
+    <div id="game">
+      <p class="counter" id="counter"></p>
+      <article class="msg" id="msg"></article>
+
+      <div class="actions" id="actions">
+        <button class="btn safe" data-choice="safe">Es seguro</button>
+        <button class="btn trap" data-choice="trap">Es una trampa</button>
+      </div>
+
+      <div id="feedback" tabindex="-1" aria-live="polite"></div>
+    </div>
+
+    <div id="final" class="final" hidden></div>
+  </section>
+
+  <!-- GUÍA RÁPIDA -->
+  <aside class="card guide" aria-labelledby="guide-title">
+    <h2 id="guide-title">Guía rápida: 4 pistas</h2>
+    <p>Revísalas antes de tocar cualquier enlace.</p>
+    <details open>
+      <summary>1. Remitente</summary>
+      <div>Mira la dirección completa, no solo el nombre. Dominios raros, letras cambiadas o terminaciones como .xyz o .net en lugar del sitio oficial son señal de alerta.</div>
+    </details>
+    <details>
+      <summary>2. Urgencia</summary>
+      <div>"Última oportunidad", "cuenta bloqueada en 2 horas". Los engaños te apuran para que no pienses. Las instituciones reales no te presionan así.</div>
+    </details>
+    <details>
+      <summary>3. Enlace</summary>
+      <div>Antes de tocar, revisa a dónde lleva. Desconfía de enlaces acortados (bit.ly) y de dominios que solo contienen el nombre de la marca como parte de otro.</div>
+    </details>
+    <details>
+      <summary>4. Cuida tus datos</summary>
+      <div>Ningún banco ni empresa te pedirá contraseña, NIP, CVV o códigos por mensaje. Si dudas, entra tú mismo a la app oficial o llama al número de tu tarjeta.</div>
+    </details>
+  </aside>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>CyberTrap · Proyecto educativo · Los casos son ficticios.</span>
+    <a href="https://github.com/tu-usuario/cybertrap" target="_blank" rel="noopener noreferrer">Ver en GitHub</a>
+  </div>
+</footer>
+
+<script>
+/* ============ DATOS: escenarios ficticios ============
+   hl  = fragmento sospechoso (rojo al descubrir)
+   ok  = fragmento legítimo (verde al descubrir)
+   Cada pista: [etiqueta de la guía, explicación]               */
+const SCENARIOS = [
+  {
+    type: "email", trap: true, mainClue: "Urgencia",
+    from: "Seguridad BancoNova &lt;alerta@<span class='hl'>banconova-seguridad.co</span>&gt;",
+    subject: "⚠ Acción inmediata: tu cuenta será bloqueada",
+    body: "Estimado cliente:\n\nDetectamos actividad inusual. <span class='hl'>Tu cuenta será BLOQUEADA en 2 horas</span> si no verificas tu identidad.\n<a class='fake-btn' aria-disabled='true'>Verificar ahora</a>\n<span class='url hl'>banconova.com.verificar-cuenta.net/login</span>\n\n<span class='hl'>Confirma tu número de tarjeta y NIP</span> para evitar el cierre.",
+    clues: [
+      ["Remitente", "El dominio banconova-seguridad.co no es el del banco; imita su nombre."],
+      ["Urgencia", "Amenaza con bloquear la cuenta en 2 horas para que actúes sin pensar."],
+      ["Enlace", "El dominio real del enlace es verificar-cuenta.net; \"banconova.com\" solo aparece al inicio como disfraz."],
+      ["Datos", "Ningún banco pide tarjeta y NIP por correo."]
+    ],
+    tip: "No toques el botón. Abre la app oficial de tu banco escribiendo tú la dirección o llama al número de tu tarjeta."
+  },
+  {
+    type: "sms", trap: true, mainClue: "Enlace",
+    from: "+52 55 0000 4821",
+    subject: "SMS",
+    body: "EnvíoExpress: tu paquete no pudo entregarse. <span class='hl'>Paga $18 de reenvío</span> en <span class='url hl'>https://bit.ly/envio-mx-8271</span> o <span class='hl'>será devuelto hoy</span>.",
+    clues: [
+      ["Enlace", "Es un enlace acortado: no puedes saber a dónde lleva."],
+      ["Urgencia", "\"Será devuelto hoy\" busca que pagues sin verificar."],
+      ["Datos", "Pide un pago pequeño para obtener tus datos de tarjeta."]
+    ],
+    tip: "Revisa tu pedido directamente en la app o sitio de la paquetería, nunca desde un enlace de SMS."
+  },
+  {
+    type: "email", trap: false, mainClue: "Remitente",
+    from: "Tienda Aurora &lt;<span class='ok'>pedidos@tiendaaurora.com</span>&gt;",
+    subject: "Recibimos tu pedido #20471",
+    body: "Hola, Ana:\n\n<span class='ok'>Gracias por tu compra del lunes.</span> Tu pedido salió del almacén y llegará en 3 a 5 días hábiles.\n\n<span class='ok'>Puedes ver el estado entrando a tu cuenta desde la app</span>. No necesitas responder este correo.\n\nEquipo Tienda Aurora",
+    clues: [
+      ["Remitente", "El dominio coincide con el de la tienda donde sí compraste."],
+      ["Urgencia", "No te presiona: solo informa."],
+      ["Enlace", "No incluye enlaces; te dice que entres tú a tu cuenta."],
+      ["Datos", "No te pide ninguna información."]
+    ],
+    tip: "Aun así, recuerda: si no hiciste esa compra, no respondas; revisa directamente en la app."
+  },
+  {
+    type: "email", trap: true, mainClue: "Datos",
+    from: "Soporte TI &lt;<span class='hl'>helpdesk@soporte-ti-mx.xyz</span>&gt;",
+    subject: "Tu contraseña de la escuela caduca hoy",
+    body: "Hola:\n\n<span class='hl'>Tu contraseña caduca hoy a las 18:00.</span> Para conservar tu acceso, <span class='hl'>responde este correo con tu usuario y tu contraseña actual</span> y te daremos una nueva.\n\nGracias,\nDepartamento de Sistemas",
+    clues: [
+      ["Datos", "Nadie legítimo te pide tu contraseña, mucho menos por correo."],
+      ["Remitente", "El dominio .xyz no pertenece a tu institución."],
+      ["Urgencia", "Fija una hora límite para que no verifiques."]
+    ],
+    tip: "Tu contraseña es personal. Si dudas, ve en persona o escribe al correo oficial que conoces de tu institución."
+  },
+  {
+    type: "sms", trap: false, mainClue: "Datos",
+    from: "Clínica Sol",
+    subject: "SMS",
+    body: "<span class='ok'>Clínica Sol:</span> recordatorio de tu cita mañana a las 10:00 am. <span class='ok'>Si necesitas cambiarla, llama al teléfono que aparece en tu tarjeta de cita.</span>",
+    clues: [
+      ["Datos", "No pide información personal ni pagos."],
+      ["Enlace", "No incluye enlaces; te manda a un teléfono que ya tienes."],
+      ["Urgencia", "Es un recordatorio, sin amenazas ni plazos extraños."]
+    ],
+    tip: "Reconocer lo seguro también importa: no todo mensaje es una trampa. Revisa siempre las 4 pistas."
+  }
+];
+
+/* ============ ESTADO ============ */
+const $ = id => document.getElementById(id);
+let order = [];      // escenarios en orden aleatorio
+let i = 0;           // caso actual
+let score = 0;       // aciertos
+let answered = false;
+const POINTS = 20;   // puntos por acierto
+
+/* Fisher-Yates: mezcla sin sesgo */
+function shuffle(a){
+  a = a.slice();
+  for (let n = a.length - 1; n > 0; n--) {
+    const k = Math.floor(Math.random() * (n + 1));
+    [a[n], a[k]] = [a[k], a[n]];
+  }
+  return a;
+}
+
+/* Fases visuales: "decide" (Observa + Decide) o "descubre" */
+function setPhase(p){
+  $("st-observa").classList.toggle("on", p === "decide");
+  $("st-decide").classList.toggle("on", p === "decide");
+  $("st-descubre").classList.toggle("on", p === "descubre");
+}
+
+function updateHUD(){
+  $("score").textContent = score * POINTS;
+  $("progress-label").textContent = `Caso ${Math.min(i + 1, order.length)} de ${order.length}`;
+  $("bar").style.width = (i / order.length * 100) + "%";
+}
+
+/* ============ RENDER DE UN CASO ============ */
+function showCase(){
+  const s = order[i];
+  answered = false;
+  setPhase("decide");
+  $("game").hidden = false;
+  $("final").hidden = true;
+  $("feedback").innerHTML = "";
+  $("counter").textContent = s.type === "sms" ? "Mensaje de texto recibido" : "Correo recibido";
+
+  const msg = $("msg");
+  msg.className = "msg " + s.type;
+  msg.innerHTML = s.type === "email"
+    ? `<div class="msg-head"><div class="subject">${s.subject}</div><div class="from">De: ${s.from}</div></div><div class="msg-body">${s.body}</div>`
+    : `<div class="msg-head"><div class="from">${s.from}</div></div><div class="msg-body">${s.body}</div>`;
+
+  document.querySelectorAll("#actions .btn").forEach(b => {
+    b.disabled = false;
+    b.classList.remove("picked");
+  });
+  $("actions").hidden = false;
+  updateHUD();
+}
+
+/* ============ RESPUESTA DEL USUARIO ============ */
+function decide(choice, btn){
+  if (answered) return;
+  answered = true;
+  const s = order[i];
+  const correct = (choice === "trap") === s.trap;
+  if (correct) score++;
+
+  // Bloquear botones y marcar la elección
+  document.querySelectorAll("#actions .btn").forEach(b => b.disabled = true);
+  btn.classList.add("picked");
+
+  // Fase Descubre: resaltar pistas en el mensaje
+  $("msg").classList.add("revealed");
+  setPhase("descubre");
+
+  const isLast = i === order.length - 1;
+  const verdict = correct ? "¡Bien visto!" : "Casi: esta vez te engañaron";
+  const kind = s.trap ? "Era una trampa." : "Era un mensaje seguro.";
+  const items = s.clues.map(c => `<li><b>${c[0]}:</b> ${c[1]}</li>`).join("");
+
+  const fb = $("feedback");
+  fb.innerHTML = `
+    <div class="feedback ${correct ? "good" : "bad"}">
+      <h2>${verdict} ${kind}</h2>
+      <p>Pista clave: <b>${s.mainClue}</b></p>
+      <ul>${items}</ul>
+      <p class="tip"><b>Consejo:</b> ${s.tip}</p>
+      <button class="btn-primary" id="next">${isLast ? "Ver mi resultado" : "Siguiente caso"}</button>
+    </div>`;
+  $("next").addEventListener("click", next);
+  fb.focus();                       // accesibilidad: lector de pantalla anuncia el resultado
+  fb.scrollIntoView({behavior: "smooth", block: "nearest"});
+  updateHUD();
+  $("score").textContent = score * POINTS;
+}
+
+function next(){
+  i++;
+  if (i >= order.length) return showFinal();
+  showCase();
+  $("game").scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+/* ============ RESULTADO FINAL ============ */
+function showFinal(){
+  $("game").hidden = true;
+  $("final").hidden = false;
+  setPhase("descubre");
+  $("bar").style.width = "100%";
+  $("progress-label").textContent = "Completado";
+
+  const total = order.length;
+  let level, text;
+  if (score === total)      { level = "Ojo de halcón";  text = "Detectaste todos los casos. Sigue aplicando las 4 pistas." }
+  else if (score >= total - 2) { level = "Buen instinto"; text = "Vas por buen camino. Repasa la guía y vuelve a intentarlo." }
+  else                      { level = "En entrenamiento"; text = "Es normal: estos engaños están diseñados para confundir. Repasa la guía y repite." }
+
+  $("final").innerHTML = `
+    <p>Tu resultado</p>
+    <div class="big">${score} / ${total}</div>
+    <h2>${level}</h2>
+    <p style="color:var(--muted);margin:.5rem auto 1.2rem;max-width:40ch">${text}</p>
+    <button class="btn-primary" id="restart">Jugar de nuevo</button>`;
+  $("restart").addEventListener("click", start);
+  $("final").setAttribute("tabindex", "-1");
+  $("final").focus();
+}
+
+/* ============ INICIO ============ */
+function start(){
+  order = shuffle(SCENARIOS);
+  i = 0; score = 0;
+  showCase();
+}
+
+document.querySelectorAll("#actions .btn").forEach(b =>
+  b.addEventListener("click", () => decide(b.dataset.choice, b)));
+
+start();
+</script>
+</body>
+</html>
